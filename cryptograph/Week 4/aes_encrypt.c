@@ -34,6 +34,7 @@
 #include <tinycrypt/utils.h>
 #include <tinycrypt/constants.h>
 
+//subByte를 위한 table이다.
 static const uint8_t sbox[256] = {
 	0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0xc5, 0x30, 0x01, 0x67, 0x2b,
 	0xfe, 0xd7, 0xab, 0x76, 0xca, 0x82, 0xc9, 0x7d, 0xfa, 0x59, 0x47, 0xf0,
@@ -59,16 +60,21 @@ static const uint8_t sbox[256] = {
 	0xb0, 0x54, 0xbb, 0x16
 };
 
+
 static inline unsigned int rotword(unsigned int a)
 {
+	//shift row와 유사하게 동작하며 1byte만 shift를 한다.
 	return (((a) >> 24)|((a) << 8));
 }
 
 #define subbyte(a, o)(sbox[((a) >> (o))&0xff] << (o))
 #define subword(a)(subbyte(a, 24)|subbyte(a, 16)|subbyte(a, 8)|subbyte(a, 0))
+//sub Byte와 비슷하다.
 
 int tc_aes128_set_encrypt_key(TCAesKeySched_t s, const uint8_t *k)
+//key를 expansion을 하기위해 사용되는 함수이다.
 {
+	//상수 Round Constant이다.
 	const unsigned int rconst[11] = {
 		0x00000000, 0x01000000, 0x02000000, 0x04000000, 0x08000000, 0x10000000,
 		0x20000000, 0x40000000, 0x80000000, 0x1b000000, 0x36000000
@@ -81,27 +87,31 @@ int tc_aes128_set_encrypt_key(TCAesKeySched_t s, const uint8_t *k)
 	} else if (k == (const uint8_t *) 0) {
 		return TC_CRYPTO_FAIL;
 	}
-
+	//OR 연산을 통한 열 제작.
 	for (i = 0; i < Nk; ++i) {
 		s->words[i] = (k[Nb*i]<<24) | (k[Nb*i+1]<<16) |
 			      (k[Nb*i+2]<<8) | (k[Nb*i+3]);
 	}
 
+	// cipher key를 만드는 과정
+	// w -> rootword -> subword-> RCon[i/4]->t[i]이다.
 	for (; i < (Nb * (Nr + 1)); ++i) {
 		t = s->words[i-1];
 		if ((i % Nk) == 0) {
 			t = subword(rotword(t)) ^ rconst[i/Nk];
 		}
+		//t와 word를 XOR을 통해 키들을 만들어간다.
 		s->words[i] = s->words[i-Nk] ^ t;
 	}
 
 	return TC_CRYPTO_SUCCESS;
 }
 
-// 각 state 열 128bit에 대해 128bit round key를 XOR하여 저장한다. 
-// right shit를 통해 원하는 byte를 얻어 XOR을 진행한다.
+
 static inline void add_round_key(uint8_t *s, const unsigned int *k)
 { 
+	// 각 state 열 128bit에 대해 128bit key word를 XOR하여 생성한다. 
+	// right shit를 통해 원하는 byte를 얻어 XOR을 진행한다.
 	s[0] ^= (uint8_t)(k[0] >> 24); s[1] ^= (uint8_t)(k[0] >> 16);
 	s[2] ^= (uint8_t)(k[0] >> 8); s[3] ^= (uint8_t)(k[0]);
 	//s[0]에는 k[0]를 3byte right shift 후 XOR, s[1]에는 k[0]를 2byte right shift 후 XOR
@@ -115,12 +125,18 @@ static inline void add_round_key(uint8_t *s, const unsigned int *k)
 	s[14] ^= (uint8_t)(k[3] >> 8); s[15] ^= (uint8_t)(k[3]);
 }
 
+
 static inline void sub_bytes(uint8_t *s)
 {
+	/*
+	x의 8승+ x의 4승 + x의 3승 + x + 1을 미리 계산해둔 sbox를 통해
+	8bit인 s를 예를 들어 s가 16진수로 a일 경우 이를 sbox에 넣을 경우 sbox[a]의 값이 s의 값으로 설정합니다.
+	따라서 모든 s[i]에 해당 하는 값이 sbox[s[i]]의 값으로 설정되어 블록 전체의 값이 변경됩니다.
+	*/
 	unsigned int i;
 
 	for (i = 0; i < (Nb * Nk); ++i) {
-		s[i] = sbox[s[i]];
+		s[i] = sbox[s[i]];-
 	}
 }
 
@@ -128,14 +144,23 @@ static inline void sub_bytes(uint8_t *s)
 
 static inline void mult_row_column(uint8_t *out, const uint8_t *in)
 {
+	/*
+	이함수는 행렬 곱셈을 위한 함수로써 4 by 4 matrix와 열을 곱셈을 해주는 함수입니다.
+	ex) ax,by,cz,dt의 연산을 XOR을 통해 계산한다.
+	*/
 	out[0] = _double_byte(in[0]) ^ triple(in[1]) ^ in[2] ^ in[3];
 	out[1] = in[0] ^ _double_byte(in[1]) ^ triple(in[2]) ^ in[3];
 	out[2] = in[0] ^ in[1] ^ _double_byte(in[2]) ^ triple(in[3]);
 	out[3] = triple(in[0]) ^ in[1] ^ in[2] ^ _double_byte(in[3]);
 }
 
+
 static inline void mix_columns(uint8_t *s)
 {
+	/*
+		미리 지정된 4(Nb) X 4(Nk) constant matrix와 state의 열을 곱셈하여
+		계산된 state을 하나 만든다.
+	*/
 	uint8_t t[Nb*Nk];
 
 	mult_row_column(t, s);
@@ -153,7 +178,7 @@ static inline void shift_rows(uint8_t *s)
 {
 	uint8_t t[Nb * Nk]; //uint8_t = 1byte
 	
-	/* 첫번째 Row는 아무런 shift 없이 같은 Row를 사용하고
+	/* 제공받은 state를 첫번째 Row는 아무런 shift 없이 같은 Row를 사용하고
 	두번째 Row는 1byte shift를 진행하여 t[1]에는 s[5], t[5] = s[9]을 넣으며 진행한다.
 	세번째 Row는 2byte shift를 진행하여 t[2]에는 s[10], t[6] = s[14]를 넣으며 진행하며
 	네번째 Row는 3byte shift를 진행하여 t[3]에는 s[15], t[7] = s[3]을 넣어 Shift_row를 진행한다.
@@ -167,6 +192,7 @@ static inline void shift_rows(uint8_t *s)
 
 int tc_aes_encrypt(uint8_t *out, const uint8_t *in, const TCAesKeySched_t s)
 {
+	// plaintext인 state를 위한 공간
 	uint8_t state[Nk*Nb];
 	unsigned int i;
 
@@ -177,21 +203,22 @@ int tc_aes_encrypt(uint8_t *out, const uint8_t *in, const TCAesKeySched_t s)
 	} else if (s == (TCAesKeySched_t) 0) {
 		return TC_CRYPTO_FAIL;
 	}
-
+	//plain text를 넣어 AES의 암호화 과정을 진행
 	(void)_copy(state, sizeof(state), in, sizeof(state));
+	// 먼저 add_round_key를 진행한다.
 	add_round_key(state, s->words);
-
+	// 나머지4개의 과정을 순차적으로 진행하고
 	for (i = 0; i < (Nr - 1); ++i) {
 		sub_bytes(state);
 		shift_rows(state);
 		mix_columns(state);
 		add_round_key(state, s->words + Nb*(i+1));
 	}
-
+	// 마무리시에는 3개의 함수만 동작한다.
 	sub_bytes(state);
 	shift_rows(state);
 	add_round_key(state, s->words + Nb*(i+1));
-
+	//암호화된 plaintext를 전달한다.
 	(void)_copy(out, sizeof(state), state, sizeof(state));
 
 	/* zeroing out the state buffer */

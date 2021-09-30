@@ -35,6 +35,7 @@
 #include <tinycrypt/utils.h>
 
 static const uint8_t inv_sbox[256] = {
+	//sbox의 역으로 써 subByte를 구하기위해 사용된다.
 	0x52, 0x09, 0x6a, 0xd5, 0x30, 0x36, 0xa5, 0x38, 0xbf, 0x40, 0xa3, 0x9e,
 	0x81, 0xf3, 0xd7, 0xfb, 0x7c, 0xe3, 0x39, 0x82, 0x9b, 0x2f, 0xff, 0x87,
 	0x34, 0x8e, 0x43, 0x44, 0xc4, 0xde, 0xe9, 0xcb, 0x54, 0x7b, 0x94, 0x32,
@@ -59,6 +60,7 @@ static const uint8_t inv_sbox[256] = {
 	0x55, 0x21, 0x0c, 0x7d
 };
 
+//key를 expension 하기위해 사용되는 함수로 encrypt에 제공된 함수를 사용하면 된다.
 int tc_aes128_set_decrypt_key(TCAesKeySched_t s, const uint8_t *k)
 {
 	return tc_aes128_set_encrypt_key(s, k);
@@ -70,8 +72,10 @@ int tc_aes128_set_decrypt_key(TCAesKeySched_t s, const uint8_t *k)
 #define multd(a)(mult8(a)^_double_byte(_double_byte(a))^(a))
 #define multe(a)(mult8(a)^_double_byte(_double_byte(a))^_double_byte(a))
 
+
 static inline void mult_row_column(uint8_t *out, const uint8_t *in)
 {
+	//암호문으로부터 파생된 state로 부터 원래의 열을 찾는 계산식이다.
 	out[0] = multe(in[0]) ^ multb(in[1]) ^ multd(in[2]) ^ mult9(in[3]);
 	out[1] = mult9(in[0]) ^ multe(in[1]) ^ multb(in[2]) ^ multd(in[3]);
 	out[2] = multd(in[0]) ^ mult9(in[1]) ^ multe(in[2]) ^ multb(in[3]);
@@ -80,6 +84,7 @@ static inline void mult_row_column(uint8_t *out, const uint8_t *in)
 
 static inline void inv_mix_columns(uint8_t *s)
 {
+	//들어온 암호문으로부터 파생된 열에 대해 constant matrix를 통해 행열의 곱셈을 하기전에 열을 구한다.
 	uint8_t t[Nb*Nk];
 
 	mult_row_column(t, s);
@@ -91,8 +96,13 @@ static inline void inv_mix_columns(uint8_t *s)
 
 static inline void add_round_key(uint8_t *s, const unsigned int *k)
 {
+	//각 state열 128bit에 대해 128bit keyword를 XOR를 통해 생성한다.
+	// right shit를 통해 원하는 byte를 얻어 XOR을 진행한다.
 	s[0] ^= (uint8_t)(k[0] >> 24); s[1] ^= (uint8_t)(k[0] >> 16);
 	s[2] ^= (uint8_t)(k[0] >> 8); s[3] ^= (uint8_t)(k[0]);
+	//s[0]에는 k[0]를 3byte right shift 후 XOR, s[1]에는 k[0]를 2byte right shift 후 XOR
+	//s[2]에는 k[0]를 1byte right shift 후 XOR, s[3]에는 k[0]를 XOR을 한다.
+	//이후 나머지에 대해 동일한 방식으로 XOR을 한다.
 	s[4] ^= (uint8_t)(k[1] >> 24); s[5] ^= (uint8_t)(k[1] >> 16);
 	s[6] ^= (uint8_t)(k[1] >> 8); s[7] ^= (uint8_t)(k[1]);
 	s[8] ^= (uint8_t)(k[2] >> 24); s[9] ^= (uint8_t)(k[2] >> 16);
@@ -103,6 +113,7 @@ static inline void add_round_key(uint8_t *s, const unsigned int *k)
 
 static inline void inv_sub_bytes(uint8_t *s)
 {
+	// 미리 계산된 invers_sbox를 통해 암호문으로부터 제공된 state를 복호화 해나아간다.
 	unsigned int i;
 
 	for (i = 0; i < (Nb*Nk); ++i) {
@@ -117,6 +128,11 @@ static inline void inv_sub_bytes(uint8_t *s)
  */
 static inline void inv_shift_rows(uint8_t *s)
 {
+	/* 역시 암호문으로부터 제공된 state를 첫번째 Row는 아무런 shift 없이 같은 Row를 사용하고
+	두번째 Row는 1byte shift를 진행하여 t[1]에는 s[5], t[5] = s[9]을 넣으며 진행한다.
+	세번째 Row는 2byte shift를 진행하여 t[2]에는 s[10], t[6] = s[14]를 넣으며 진행하며
+	네번째 Row는 3byte shift를 진행하여 t[3]에는 s[15], t[7] = s[3]을 넣어 Shift_row를 진행한다.
+	*/
 	uint8_t t[Nb*Nk];
 
 	t[0]  = s[0]; t[1] = s[13]; t[2] = s[10]; t[3] = s[7];
@@ -128,6 +144,7 @@ static inline void inv_shift_rows(uint8_t *s)
 
 int tc_aes_decrypt(uint8_t *out, const uint8_t *in, const TCAesKeySched_t s)
 {
+	//암호문이 저장될 공간
 	uint8_t state[Nk*Nb];
 	unsigned int i;
 
@@ -138,22 +155,23 @@ int tc_aes_decrypt(uint8_t *out, const uint8_t *in, const TCAesKeySched_t s)
 	} else if (s == (TCAesKeySched_t) 0) {
 		return TC_CRYPTO_FAIL;
 	}
-
+	//제공받은 암호문을 복사
 	(void)_copy(state, sizeof(state), in, sizeof(state));
-
+	//제공받은 암호문을 add_round_key로부터 시작한다.
+	//이유는 암호화 과정을 거꾸로올라가야하므로 마지막에 실행된 add_round_key를 진행한다.
 	add_round_key(state, s->words + Nb*Nr);
-
+	//마찬가지로 암호화때 진행되었던 4개의 과정이 순서의역의방향으로 진행된다.
 	for (i = Nr - 1; i > 0; --i) {
 		inv_shift_rows(state);
 		inv_sub_bytes(state);
 		add_round_key(state, s->words + Nb*i);
 		inv_mix_columns(state);
 	}
-
+	//마지막에는 암호화떄 진행하였던 3개의 함수만 역으로 진행한다.
 	inv_shift_rows(state);
 	inv_sub_bytes(state);
 	add_round_key(state, s->words);
-
+	// 해당 작업을 진행하면 암호문이 평문으로 복호화가 된다.
 	(void)_copy(out, sizeof(state), state, sizeof(state));
 
 	/*zeroing out the state buffer */
