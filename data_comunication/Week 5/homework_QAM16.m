@@ -10,7 +10,7 @@ Fc = 10;
 %
 Fe =  0;
 % Noise level
-N0 = 0.5;
+N0 = 0.1;
 
 % Simulation
 % 샘플링된 것이 Fs로 나누면 이경우 100분의 1초마다 생기는 것임.
@@ -23,11 +23,29 @@ Tmax = length(t);
 % Symbol 생성
 M = 4;
 symTable = zeros(1,16);
-
-for i = 1:M
-    i_m = 2*pi*(i-1)/M + pi/4;
-    symTable(i) = cos(i_m) + j*sin(i_m);
+ 
+for i = 1:16
+    r = mod((i),M);
+    q = fix(i/M);
+    if q == 0
+        if r == 0
+            symTable(i) = complex(3,-3);
+        else
+            x = 2*r-1-M;
+            symTable(i) = complex(x,3);
+        end
+    else 
+        if r == 0
+            y = 2*q-1-M;
+            symTable(i) = complex(3,y);
+        else
+            x = 2*r-1-M;
+            y = 2*q-1-M;
+            symTable(i) = complex(x,y);
+        end
+    end
 end
+
 
 % basis Signal 생성
 phi1 = cos(2*pi*Fc*t(1:Tsym*Fs));
@@ -47,18 +65,21 @@ m = randi(16,1,Nsym);
 
 % 심볼 신호 만들기
 % 심볼 테이블 만들듯이 만들면 된다.
-bbSym = zeros(2,Nsym);
+bbSym = zeros(1,Nsym);
 
 for i =1:length(m)
     if mod(m(i),M) == 0
-        bbSym(1,i) = 3;
+        if fix(m(i)/M) == 0
+            bbSym(i) = complex(3,3);
+        else
+            bbSym(i) = complex(3,2*fix(m(i)/M)-1-M);
+        end
     else
-        bbSym(1,i) = 2*(mod(m(i),M))-1-M;
-    end
-    if fix(m(i)/M) == 0
-        bbSym(2,i) = 3;
-    else
-        bbSym(2,i) = 2*(fix(m(i)/M))-1-M;
+        if fix(m(i)/M) == 0
+            bbSym(i) = complex(2*mod(m(i),M)-1-M,3);
+        else
+            bbSym(i) = complex(2*mod(m(i),M)-1-M,2*fix(m(i)/M)-1-M);
+        end
     end
 end
 
@@ -66,7 +87,7 @@ end
 RFsignal = zeros(1,Tmax);
 for iterT = 1:Tmax
     iterSym = floor((iterT-1)/Fs)+1;
-    RFsignal(iterT) = real(bbSym(1,iterSym))*cos(2*pi*Fc*t(iterT))/Es - real(bbSym(2,iterSym))*sin(2*pi*Fc*t(iterT))/Es;
+    RFsignal(iterT) = real(bbSym(iterSym))*cos(2*pi*Fc*t(iterT))/Es - imag(bbSym(iterSym))*sin(2*pi*Fc*t(iterT))/Es;
 end
 
 % 참고 - Signal 보여주기
@@ -126,14 +147,11 @@ scatter(s(1,:),s(2,:),'r*');
 
 % Optimal Receiver
 hd_bbSym = zeros(1,Nsym);
-hd_bbSymt = zeros(2,Nsym);
 for i= 1:Nsym
     corr_result = bbSymN_rx(i)*conj(symTable);
     [dammyVal hd_index] = max(real(corr_result));
     hd_bbSym(i) = symTable(hd_index);
-    hd_bbSymt(1,i) = real(symTable(hd_index));
-    hd_bbSymt(2,i) = imag(symTable(hd_index));
 end
 
 % Symbol Error Rate
-SER = sum( abs(hd_bbSym - bbSym_rx)> 0.01) /Nsym;
+SER = sum( abs(hd_bbSym - bbSym) > 0.01) /Nsym
