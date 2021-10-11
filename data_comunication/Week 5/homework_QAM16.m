@@ -10,7 +10,7 @@ Fc = 10;
 %
 Fe =  0;
 % Noise level
-N0 = 0.1;
+N0 = 2.5;
 
 % Simulation
 % 샘플링된 것이 Fs로 나누면 이경우 100분의 1초마다 생기는 것임.
@@ -24,28 +24,16 @@ Tmax = length(t);
 M = 4;
 symTable = zeros(1,16);
  
-for i = 1:16
-    r = mod((i),M);
-    q = fix(i/M);
-    if q == 0
-        if r == 0
-            symTable(i) = complex(3,-3);
-        else
-            x = 2*r-1-M;
-            symTable(i) = complex(x,3);
-        end
-    else 
-        if r == 0
-            y = 2*q-1-M;
-            symTable(i) = complex(3,y);
-        else
-            x = 2*r-1-M;
-            y = 2*q-1-M;
-            symTable(i) = complex(x,y);
-        end
-    end
+for i = 1: 16
+    r = mod(i-1,M);
+    q = fix((i-1)/M);
+    symTable(i) = complex(2*(r+1)-1-M,2*(q+1)-1-M);
 end
 
+
+%figure(1)
+%plot(symTable,"r*")
+%axis([-4 4 -4 4]);
 
 % basis Signal 생성
 phi1 = cos(2*pi*Fc*t(1:Tsym*Fs));
@@ -67,21 +55,13 @@ m = randi(16,1,Nsym);
 % 심볼 테이블 만들듯이 만들면 된다.
 bbSym = zeros(1,Nsym);
 
-for i =1:length(m)
-    if mod(m(i),M) == 0
-        if fix(m(i)/M) == 0
-            bbSym(i) = complex(3,3);
-        else
-            bbSym(i) = complex(3,2*fix(m(i)/M)-1-M);
-        end
-    else
-        if fix(m(i)/M) == 0
-            bbSym(i) = complex(2*mod(m(i),M)-1-M,3);
-        else
-            bbSym(i) = complex(2*mod(m(i),M)-1-M,2*fix(m(i)/M)-1-M);
-        end
-    end
+for i = 1: length(m)
+    r = mod(m(i)-1,M);
+    q = fix((m(i)-1)/M);
+    bbSym(i) = complex(2*(r+1)-1-M,2*(q+1)-1-M);
 end
+
+
 
 % Up-conversion 실어보낼껏임.(DAC 포함)
 RFsignal = zeros(1,Tmax);
@@ -148,8 +128,10 @@ scatter(s(1,:),s(2,:),'r*');
 % Optimal Receiver
 hd_bbSym = zeros(1,Nsym);
 for i= 1:Nsym
-    corr_result = bbSymN_rx(i)*conj(symTable);
-    [dammyVal hd_index] = max(real(corr_result));
+    %기존의 방법으로는 추가적인 조건이 필요하다.
+    %따라서 또 다른 방법인 거리를 통해 해결해보면 
+    corr_result = (real(bbSymN_rx(i)) - real(symTable)).^2 + (imag(bbSymN_rx(i)) - imag(symTable)).^2;
+    [dammyVal hd_index] = min(corr_result);
     hd_bbSym(i) = symTable(hd_index);
 end
 
