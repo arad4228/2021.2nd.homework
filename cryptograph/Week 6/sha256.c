@@ -81,10 +81,11 @@ int tc_sha256_update(TCSha256State_t s, const uint8_t *data, size_t datalen)
 		return TC_CRYPTO_SUCCESS;
 	}
 
-	//해당부분은 잘 모르겠습니다.
+	//해당부분은 hash값을 업데이트하는 부분으로 추측됩니다.
 	while (datalen-- > 0) {
 		s->leftover[s->leftover_offset++] = *(data++);
 		if (s->leftover_offset >= TC_SHA256_BLOCK_SIZE) {
+			//해당 부분에서 압축함수를 돌리는 것은 데이터를 업데이트 하였을 경우 hash값도 변경해야하므로 압축함수를 진행했다 생각됩니다.
 			compress(s->iv, s->leftover);
 			s->leftover_offset = 0;
 			s->bits_hashed += (TC_SHA256_BLOCK_SIZE << 3);
@@ -94,7 +95,7 @@ int tc_sha256_update(TCSha256State_t s, const uint8_t *data, size_t datalen)
 	return TC_CRYPTO_SUCCESS;
 }
 
-// hash 함수의 마무리 절차이다.
+// hash 함수의 마무리 절차라고 생각됩니다.
 int tc_sha256_final(uint8_t *digest, TCSha256State_t s)
 {
 	unsigned int i;
@@ -105,11 +106,10 @@ int tc_sha256_final(uint8_t *digest, TCSha256State_t s)
 		return TC_CRYPTO_FAIL;
 	}
 
-	//해당부분은 잘 모르겠습니다.
 	s->bits_hashed += (s->leftover_offset << 3);
-
 	s->leftover[s->leftover_offset++] = 0x80; /* always room for one byte */
 	if (s->leftover_offset > (sizeof(s->leftover) - 8)) {
+		//마지막 모든 block을 message를 넣는 데 사용했다면 1block을 padding을 위해 사용.
 		/* there is not room for all the padding in this block */
 		_set(s->leftover + s->leftover_offset, 0x00,
 		     sizeof(s->leftover) - s->leftover_offset);
