@@ -2,7 +2,7 @@ clear;
 
 % Parameter Setting
 Tsym = 0.125;
-Nsym = 400;
+Nsym = 16;
 fs = 2000;
 fc = 100;
 
@@ -40,23 +40,25 @@ phi2 = phi2/Es;
 %% TX
 
 % 랜덤신호만들기
-m = randi(M,1,Nsym);
-
+%m = randi(M,1,Nsym);
+% 미리 지정된 16개의 심볼을 사용한다.
+m = [1 2 3 4 1 2 2 3 3 3 4 4 4 4 1 2];
 % 심볼신호 만들기
 theta_m = 2*pi*(m-1)/M + pi/4;
 bbSym = cos(theta_m) + j*sin(theta_m);
 bbSym_orig = bbSym;
 
 
+
 % OFDM modulation
-if Nfft>0
-    bbFsym = bbSym;
-    bbSym = [];
-    for i = 1:Nsym/Nfft
-        input = bbFsym(Nfft*(i-1)+1:Nfft*i);
-        bbSym = [bbSym ifft(input,Nfft)];
-    end
-end
+%if Nfft>0
+%    bbFsym = bbSym;
+%    bbSym = [];
+%    for i = 1:Nsym/Nfft
+%        input = bbFsym(Nfft*(i-1)+1:Nfft*i);
+%        bbSym = [bbSym ifft(input,Nfft)];
+%    end
+%end
 
 
 % DAC
@@ -69,6 +71,17 @@ reconstFilter = rcosdesign(alpha, 5, Tsym*fs/5);
 reconstNorm = sqrt(sum(reconstFilter.^2)/Tsym/fs);
 bbsignal = conv(bbInput, reconstFilter);
 bbsignal = [bbsignal(1:Tmax)];
+
+% 신호 보여주기
+figure(1)
+subplot(2,1,1);
+title('진폭')
+hold on
+plot(t,abs(bbsignal),"r");
+subplot(2,1,2)
+title('위상')
+hold on
+plot(t,angle(bbsignal),"b");
 
 % up-conversion
 RFsignal = real(bbsignal).*cos(2*pi*fc*(t-tau))/Es/reconstNorm - imag(bbsignal).*sin(2*pi*fc*(t-tau))/Es/reconstNorm; 
@@ -89,6 +102,22 @@ for i = 1:Nsym
     bbSym_rx(i) = Ich_m(n_index) - Qch_m(n_index)*j;
 end
 
+reconstFilter = rcosdesign(alpha, 5, Tsym*fs/5);
+reconstNorm = sqrt(sum(reconstFilter.^2)/Tsym/fs);
+bbsignal = conv(Ich_m+j*Qch_m, reconstFilter);
+bbsignal = [bbsignal(1:Tmax)];
+
+figure(2);
+subplot(2,1,1);
+title('진폭')
+hold on
+plot(t,abs(bbsignal),"r");
+subplot(2,1,2)
+title('위상')
+hold on
+plot(t,angle(bbsignal),"b");
+
+
 % Noise Insertion
 noise = sqrt(N0)*randn(1,length(bbSym_rx)) + j*sqrt(N0)*randn(1,length(bbSym_rx));
 bbSym_rx = bbSym_rx+noise;
@@ -105,8 +134,8 @@ if Nfft>0
     end
 end
 
-figure(1);
-scatter(real(bbSym_rx),imag(bbSym_rx));
+%figure(3);
+%scatter(real(bbSym_rx),imag(bbSym_rx));
 
 % one-tap equalization
 for i = 1:Nsym/Nfft
@@ -118,10 +147,10 @@ for i = 1:Nsym/Nfft
     bbSym_rx(Nfft*(i-1)+1:Nfft*i) = bbSym_rx(Nfft*(i-1)+1:Nfft*i).*exp(-j*phase_diff);
 end
 
-figure(1);
-hold on;
-scatter(real(bbSym_rx),imag(bbSym_rx),'r');
-hold off;
+%figure(3);
+%hold on;
+%scatter(real(bbSym_rx),imag(bbSym_rx),'r');
+%hold off;
 
 % Optimal Receiver
 hd_bbSym = zeros(1,Nsym);
