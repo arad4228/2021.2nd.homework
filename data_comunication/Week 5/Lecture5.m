@@ -55,12 +55,6 @@ for iterT = 1:Tmax
     RFsignal(iterT) = real(bbSym(iterSym))*cos(2*pi*Fc*t(iterT))/Es - imag(bbSym(iterSym))*sin(2*pi*Fc*t(iterT))/Es;
 end
 
-% 참고 - Signal 보여주기
-% t가 x축,
-figure(1)
-plot(t,RFsignal);
-xlim([0 2]);
-
 % 참고 - 심볼신호 보여주기
 s = zeros(2,Nsym);
 for i = 1:Nsym
@@ -72,10 +66,6 @@ for i = 1:Nsym
     s(1,i) = sum(RFsignal(intStart:intEnd).*phi1);
     s(2,i) = sum(RFsignal(intStart:intEnd).*phi2);
 end
-figure(2)
-scatter(s(1,:),s(2,:),'r*');
-grid on;
-axis([-2 2 -2 2]);
 
 %% RX
 
@@ -101,14 +91,6 @@ noise = sqrt(N0)*randn(1,length(bbSym_rx)) + j*sqrt(N0)*randn(1,length(bbSym_rx)
 bbSymN_rx = bbSym_rx+noise;
 noisePower = mean(abs(noise).^2);
 SNR = 10*log10(sigPower/noisePower)
-
-% Signal Space Representation
-figure(3)
-scatter(real(bbSymN_rx), imag(bbSymN_rx));
-grid on;
-axis([-2 2 -2 2]);
-hold on;
-scatter(s(1,:),s(2,:),'r*');
 
 % Optimal Receiver
 hd_bbSym = zeros(1,Nsym);
