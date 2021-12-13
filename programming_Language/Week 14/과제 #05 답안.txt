@@ -1,0 +1,37 @@
+과제 #05
+
+1. C언어와 비슷한 문법을 사용하지만, call by value와 call by reference를 모두 사용할 수 있다고 가정
+
+// call by value
+
+int x = 5;
+
+void f(int a)   // call by value
+{
+    a = a + 4;
+    printf("a = %d\n", a);  // a = 9 출력
+}
+
+void main() 
+{
+    printf("x = %d\n", x);  // x = 5 출력
+    f(x);
+    printf("x = %d\n", x);  // x = 5 출력
+}
+
+// call by reference
+
+int x = 5;
+
+void f(int a)   // call by value
+{
+    a = a + 4;
+    printf("a = %d\n", a);  // a = 9 출력
+}
+
+void main() 
+{
+    printf("x = %d\n", x);  // x = 5 출력
+    f(x);
+    printf("x = %d\n", x);  // x = 9 출력
+}
