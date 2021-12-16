@@ -22,7 +22,7 @@ Java를 활용한 디자인 패턴
 각종 암복호 관련 알고리즘 코드를 분석 C언어 기반
 </br>
 </br>
-#### middle exam>> 중간고사
+#### middle exam >> 중간고사
 </br>
 </br>
-#### final exam>> 기말고사
+#### final exam >> 기말고사
